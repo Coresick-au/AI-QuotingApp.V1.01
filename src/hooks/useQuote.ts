@@ -1,0 +1,417 @@
+
+import { useState, useEffect } from 'react';
+import type { Rates, JobDetails, Shift, ExtraItem, CalculatedShift, Quote, Customer } from '../types';
+
+const DEFAULT_RATES: Rates = {
+    siteNormal: 160,
+    siteOvertime: 190,
+    weekend: 210,
+    publicHoliday: 235,
+    officeReporting: 160,
+    travel: 120,
+    travelOvertime: 120,
+    travelCharge: 1.30,
+    travelChargeExBrisbane: 0,
+    vehicle: 120,
+    perDiem: 90,
+    standardDayRate: 2040,
+    weekendDayRate: 2520
+};
+
+const DEFAULT_JOB_DETAILS: JobDetails = {
+    customer: '',
+    jobNo: '',
+    location: '',
+    techName: '',
+    technicians: ['Tech 1'],
+    description: '',
+    reportingTime: 0,
+    includeTravelCharge: false,
+    travelDistance: 0
+};
+
+const DEFAULT_SHIFTS: Shift[] = [
+    {
+        id: 1,
+        date: new Date().toISOString().split('T')[0],
+        dayType: 'weekday',
+        startTime: '06:00',
+        finishTime: '18:00',
+        travelIn: 0.5,
+        travelOut: 0.5,
+        vehicle: true,
+        perDiem: false,
+        tech: 'Tech 1'
+    }
+];
+
+const QUOTES_STORAGE_KEY = 'service-quoter-quotes';
+const CUSTOMERS_STORAGE_KEY = 'service-quoter-customers';
+const TECHNICIANS_STORAGE_KEY = 'service-quoter-technicians';
+const DEFAULT_RATES_STORAGE_KEY = 'service-quoter-default-rates';
+
+export function useQuote() {
+    // Global State
+    const [savedQuotes, setSavedQuotes] = useState<Quote[]>([]);
+    const [savedCustomers, setSavedCustomers] = useState<Customer[]>([]);
+    const [savedTechnicians, setSavedTechnicians] = useState<string[]>([]);
+    const [savedDefaultRates, setSavedDefaultRates] = useState<Rates>(DEFAULT_RATES);
+    const [activeQuoteId, setActiveQuoteId] = useState<string | null>(null);
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    // Active Quote State
+    const [status, setStatus] = useState<'draft' | 'quoted' | 'invoice'>('draft');
+    const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
+    const [jobDetails, setJobDetails] = useState<JobDetails>(DEFAULT_JOB_DETAILS);
+    const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
+    const [extras, setExtras] = useState<ExtraItem[]>([{ id: 1, description: 'Accommodation', cost: 0 }]);
+
+    // Load from local storage on mount
+    useEffect(() => {
+        const savedQ = localStorage.getItem(QUOTES_STORAGE_KEY);
+        const savedC = localStorage.getItem(CUSTOMERS_STORAGE_KEY);
+        const savedT = localStorage.getItem(TECHNICIANS_STORAGE_KEY);
+        const savedDR = localStorage.getItem(DEFAULT_RATES_STORAGE_KEY);
+
+        if (savedQ) {
+            try {
+                setSavedQuotes(JSON.parse(savedQ));
+            } catch (e) {
+                console.error("Failed to load quotes", e);
+            }
+        }
+
+        if (savedC) {
+            try {
+                setSavedCustomers(JSON.parse(savedC));
+            } catch (e) {
+                console.error("Failed to load customers", e);
+            }
+        }
+
+        if (savedT) {
+            try {
+                setSavedTechnicians(JSON.parse(savedT));
+            } catch (e) {
+                console.error("Failed to load technicians", e);
+            }
+        }
+
+        if (savedDR) {
+            try {
+                const loadedRates = JSON.parse(savedDR);
+                setSavedDefaultRates(loadedRates);
+                // Only set active rates to defaults if we are initializing a fresh state (not implemented here, but good practice)
+                // For now, initial state uses DEFAULT_RATES constant, but we could update it here if needed.
+                // However, since we might be loading a quote, we shouldn't overwrite 'rates' here.
+                // But if we are starting fresh, we might want to use these.
+                // Since 'rates' is initialized with DEFAULT_RATES constant, let's update it if no quote is active?
+                // Actually, let's just keep 'rates' as is. The user can "Reset to Defaults".
+            } catch (e) {
+                console.error("Failed to load default rates", e);
+            }
+        }
+
+        setIsLoaded(true);
+    }, []);
+
+    // Save lists to local storage
+    useEffect(() => {
+        if (!isLoaded) return;
+        localStorage.setItem(QUOTES_STORAGE_KEY, JSON.stringify(savedQuotes));
+    }, [savedQuotes, isLoaded]);
+
+    useEffect(() => {
+        if (!isLoaded) return;
+        localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(savedCustomers));
+    }, [savedCustomers, isLoaded]);
+
+    useEffect(() => {
+        if (!isLoaded) return;
+        localStorage.setItem(TECHNICIANS_STORAGE_KEY, JSON.stringify(savedTechnicians));
+    }, [savedTechnicians, isLoaded]);
+
+    useEffect(() => {
+        if (!isLoaded) return;
+        localStorage.setItem(DEFAULT_RATES_STORAGE_KEY, JSON.stringify(savedDefaultRates));
+    }, [savedDefaultRates, isLoaded]);
+
+    // Auto-save active quote to list
+    useEffect(() => {
+        if (!activeQuoteId || !isLoaded) return;
+
+        setSavedQuotes(prev => prev.map(q =>
+            q.id === activeQuoteId
+                ? { ...q, status, rates, jobDetails, shifts, extras, lastModified: Date.now() }
+                : q
+        ));
+    }, [status, rates, jobDetails, shifts, extras, activeQuoteId, isLoaded]);
+
+    const createNewQuote = () => {
+        const newId = crypto.randomUUID();
+        const newQuote: Quote = {
+            id: newId,
+            lastModified: Date.now(),
+            status: 'draft',
+            rates: savedDefaultRates, // Use saved defaults for new quotes
+            jobDetails: DEFAULT_JOB_DETAILS,
+            shifts: DEFAULT_SHIFTS,
+            extras: [{ id: 1, description: 'Accommodation', cost: 0 }]
+        };
+        setSavedQuotes([...savedQuotes, newQuote]);
+        loadQuote(newId, newQuote);
+    };
+
+    const loadQuote = (id: string, quoteData?: Quote) => {
+        const quote = quoteData || savedQuotes.find(q => q.id === id);
+        if (!quote) return;
+
+        setActiveQuoteId(id);
+        setStatus(quote.status);
+        setRates(quote.rates);
+        setJobDetails(quote.jobDetails);
+        setShifts(quote.shifts);
+        setExtras(quote.extras);
+    };
+
+    const deleteQuote = (id: string) => {
+        setSavedQuotes(savedQuotes.filter(q => q.id !== id));
+        if (activeQuoteId === id) {
+            setActiveQuoteId(null);
+        }
+    };
+
+    const exitQuote = () => {
+        setActiveQuoteId(null);
+    };
+
+    // Customer Management
+    const saveCustomer = (customer: Customer) => {
+        setSavedCustomers(prev => {
+            const exists = prev.find(c => c.id === customer.id);
+            if (exists) {
+                return prev.map(c => c.id === customer.id ? customer : c);
+            }
+            return [...prev, customer];
+        });
+    };
+
+    const deleteCustomer = (id: string) => {
+        setSavedCustomers(prev => prev.filter(c => c.id !== id));
+    };
+
+    // Technician Management
+    const saveTechnician = (name: string) => {
+        if (!savedTechnicians.includes(name)) {
+            setSavedTechnicians([...savedTechnicians, name]);
+        }
+    };
+
+    const deleteTechnician = (name: string) => {
+        setSavedTechnicians(savedTechnicians.filter(t => t !== name));
+    };
+
+    // Default Rates Management
+    const saveAsDefaults = (newRates: Rates) => {
+        setSavedDefaultRates(newRates);
+    };
+
+    const resetToDefaults = () => {
+        setRates(savedDefaultRates);
+    };
+
+    const isLocked = status === 'quoted';
+
+    // Helpers
+    const getDuration = (start: string, end: string) => {
+        if (!start || !end) return 0;
+        const [startH, startM] = start.split(':').map(Number);
+        const [endH, endM] = end.split(':').map(Number);
+        let diff = (endH + endM / 60) - (startH + startM / 60);
+        if (diff < 0) diff += 24;
+        return parseFloat(diff.toFixed(2));
+    };
+
+    const calculateShiftBreakdown = (shift: Shift): CalculatedShift => {
+        const totalDuration = getDuration(shift.startTime, shift.finishTime);
+        const derivedSiteHrs = Math.max(0, totalDuration - (shift.travelIn + shift.travelOut));
+
+        let cost = 0;
+        let breakdown = {
+            travelInNT: 0, travelInOT: 0,
+            siteNT: 0, siteOT: 0,
+            travelOutNT: 0, travelOutOT: 0,
+            totalHours: totalDuration,
+            siteHours: derivedSiteHrs
+        };
+
+        if (shift.dayType === 'publicHoliday') {
+            // Public Holiday Logic
+            breakdown.travelInOT = shift.travelIn;
+            breakdown.siteOT = derivedSiteHrs;
+            breakdown.travelOutOT = shift.travelOut;
+
+            cost += shift.travelIn * rates.travelOvertime;
+            cost += derivedSiteHrs * rates.publicHoliday;
+            cost += shift.travelOut * rates.travelOvertime;
+
+        } else if (shift.dayType === 'weekend') {
+            // Weekend Logic
+            breakdown.travelInOT = shift.travelIn;
+            breakdown.siteOT = derivedSiteHrs;
+            breakdown.travelOutOT = shift.travelOut;
+
+            cost += shift.travelIn * rates.travelOvertime;
+            cost += derivedSiteHrs * rates.weekend;
+            cost += shift.travelOut * rates.travelOvertime;
+
+        } else {
+            // Weekday Logic
+            let hoursConsumed = 0;
+            const ntLimit = 7.5;
+
+            // A. Travel In
+            const travelInNT = Math.max(0, Math.min(shift.travelIn, ntLimit - hoursConsumed));
+            const travelInOT = shift.travelIn - travelInNT;
+            hoursConsumed += shift.travelIn;
+
+            breakdown.travelInNT = travelInNT;
+            breakdown.travelInOT = travelInOT;
+            cost += (travelInNT * rates.travel) + (travelInOT * rates.travelOvertime);
+
+            // B. Site Time
+            const siteNT = Math.max(0, Math.min(derivedSiteHrs, ntLimit - hoursConsumed));
+            const siteOT = derivedSiteHrs - siteNT;
+            hoursConsumed += derivedSiteHrs;
+
+            breakdown.siteNT = siteNT;
+            breakdown.siteOT = siteOT;
+            cost += (siteNT * rates.siteNormal) + (siteOT * rates.siteOvertime);
+
+            // C. Travel Out
+            const travelOutNT = Math.max(0, Math.min(shift.travelOut, ntLimit - hoursConsumed));
+            const travelOutOT = shift.travelOut - travelOutNT;
+            hoursConsumed += shift.travelOut;
+
+            breakdown.travelOutNT = travelOutNT;
+            breakdown.travelOutOT = travelOutOT;
+            cost += (travelOutNT * rates.travel) + (travelOutOT * rates.travelOvertime);
+        }
+
+        if (shift.vehicle) cost += rates.vehicle;
+        if (shift.perDiem) cost += rates.perDiem;
+
+        return { cost, breakdown };
+    };
+
+    const reportingCost = (jobDetails.reportingTime || 0) * rates.officeReporting;
+
+    const travelChargeCost = jobDetails.includeTravelCharge
+        ? ((rates.travelCharge * (jobDetails.travelDistance || 0)) + rates.travelChargeExBrisbane) * jobDetails.technicians.length
+        : 0;
+
+    const totalCost = shifts.reduce((acc, shift) => acc + calculateShiftBreakdown(shift).cost, 0) +
+        extras.reduce((acc, item) => acc + (item.cost || 0), 0) +
+        reportingCost +
+        travelChargeCost;
+
+    const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftBreakdown(shift).breakdown.totalHours, 0);
+
+    // Actions
+    const addShift = () => {
+        if (isLocked) return;
+        const newId = shifts.length > 0 ? Math.max(...shifts.map(s => s.id)) + 1 : 1;
+        const lastShift = shifts.length > 0 ? shifts[shifts.length - 1] : null;
+
+        const lastDate = lastShift ? new Date(lastShift.date) : new Date();
+        if (lastShift) lastDate.setDate(lastDate.getDate() + 1);
+
+        const prevStart = lastShift ? lastShift.startTime : '06:00';
+        const prevFinish = lastShift ? lastShift.finishTime : '18:00';
+        const prevTech = lastShift ? lastShift.tech : (jobDetails.technicians[0] || 'Tech 1');
+
+        const dayOfWeek = lastDate.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+        setShifts([...shifts, {
+            id: newId,
+            date: lastDate.toISOString().split('T')[0],
+            dayType: isWeekend ? 'weekend' : 'weekday',
+            startTime: prevStart,
+            finishTime: prevFinish,
+            travelIn: 0.5,
+            travelOut: 0.5,
+            vehicle: true,
+            perDiem: false,
+            tech: prevTech
+        }]);
+    };
+
+    const updateShift = (id: number, field: keyof Shift, value: any) => {
+        if (isLocked) return;
+        setShifts(shifts.map(s => s.id === id ? { ...s, [field]: value } : s));
+    };
+
+    const removeShift = (id: number) => {
+        if (isLocked) return;
+        setShifts(shifts.filter(s => s.id !== id));
+    };
+
+    const addExtra = () => {
+        if (isLocked) return;
+        setExtras([...extras, { id: Date.now(), description: '', cost: 0 }]);
+    };
+
+    const updateExtra = (id: number, field: keyof ExtraItem, value: any) => {
+        if (isLocked) return;
+        setExtras(extras.map(e => e.id === id ? { ...e, [field]: value } : e));
+    };
+
+    const removeExtra = (id: number) => {
+        if (isLocked) return;
+        setExtras(extras.filter(e => e.id !== id));
+    };
+
+    return {
+        // Global
+        savedQuotes,
+        savedCustomers,
+        savedTechnicians,
+        savedDefaultRates,
+        activeQuoteId,
+        createNewQuote,
+        loadQuote,
+        deleteQuote,
+        exitQuote,
+        saveCustomer,
+        deleteCustomer,
+        saveTechnician,
+        deleteTechnician,
+        saveAsDefaults,
+        resetToDefaults,
+
+        // Active Quote
+        status,
+        setStatus,
+        rates,
+        setRates,
+        jobDetails,
+        setJobDetails,
+        shifts,
+        addShift,
+        updateShift,
+        removeShift,
+        extras,
+        addExtra,
+        updateExtra,
+        removeExtra,
+
+        // Calculations
+        calculateShiftBreakdown,
+        totalCost,
+        reportingCost,
+        travelChargeCost,
+        totalHours,
+        isLocked
+    };
+}
