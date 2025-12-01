@@ -1,6 +1,8 @@
 
 import { useState, useEffect } from 'react';
-import type { Rates, JobDetails, Shift, ExtraItem, CalculatedShift, Quote, Customer } from '../types';
+import type { Rates, JobDetails, Shift, ExtraItem, Quote, Customer } from '../types';
+import { calculateShiftBreakdown as calculateLogic } from '../logic';
+
 
 const DEFAULT_RATES: Rates = {
     siteNormal: 160,
@@ -223,85 +225,10 @@ export function useQuote() {
     const isLocked = status === 'quoted';
 
     // Helpers
-    const getDuration = (start: string, end: string) => {
-        if (!start || !end) return 0;
-        const [startH, startM] = start.split(':').map(Number);
-        const [endH, endM] = end.split(':').map(Number);
-        let diff = (endH + endM / 60) - (startH + startM / 60);
-        if (diff < 0) diff += 24;
-        return parseFloat(diff.toFixed(2));
-    };
-
-    const calculateShiftBreakdown = (shift: Shift): CalculatedShift => {
-        const totalDuration = getDuration(shift.startTime, shift.finishTime);
-        const derivedSiteHrs = Math.max(0, totalDuration - (shift.travelIn + shift.travelOut));
-
-        let cost = 0;
-        let breakdown = {
-            travelInNT: 0, travelInOT: 0,
-            siteNT: 0, siteOT: 0,
-            travelOutNT: 0, travelOutOT: 0,
-            totalHours: totalDuration,
-            siteHours: derivedSiteHrs
-        };
-
-        if (shift.dayType === 'publicHoliday') {
-            // Public Holiday Logic
-            breakdown.travelInOT = shift.travelIn;
-            breakdown.siteOT = derivedSiteHrs;
-            breakdown.travelOutOT = shift.travelOut;
-
-            cost += shift.travelIn * rates.travelOvertime;
-            cost += derivedSiteHrs * rates.publicHoliday;
-            cost += shift.travelOut * rates.travelOvertime;
-
-        } else if (shift.dayType === 'weekend') {
-            // Weekend Logic
-            breakdown.travelInOT = shift.travelIn;
-            breakdown.siteOT = derivedSiteHrs;
-            breakdown.travelOutOT = shift.travelOut;
-
-            cost += shift.travelIn * rates.travelOvertime;
-            cost += derivedSiteHrs * rates.weekend;
-            cost += shift.travelOut * rates.travelOvertime;
-
-        } else {
-            // Weekday Logic
-            let hoursConsumed = 0;
-            const ntLimit = 7.5;
-
-            // A. Travel In
-            const travelInNT = Math.max(0, Math.min(shift.travelIn, ntLimit - hoursConsumed));
-            const travelInOT = shift.travelIn - travelInNT;
-            hoursConsumed += shift.travelIn;
-
-            breakdown.travelInNT = travelInNT;
-            breakdown.travelInOT = travelInOT;
-            cost += (travelInNT * rates.travel) + (travelInOT * rates.travelOvertime);
-
-            // B. Site Time
-            const siteNT = Math.max(0, Math.min(derivedSiteHrs, ntLimit - hoursConsumed));
-            const siteOT = derivedSiteHrs - siteNT;
-            hoursConsumed += derivedSiteHrs;
-
-            breakdown.siteNT = siteNT;
-            breakdown.siteOT = siteOT;
-            cost += (siteNT * rates.siteNormal) + (siteOT * rates.siteOvertime);
-
-            // C. Travel Out
-            const travelOutNT = Math.max(0, Math.min(shift.travelOut, ntLimit - hoursConsumed));
-            const travelOutOT = shift.travelOut - travelOutNT;
-            hoursConsumed += shift.travelOut;
-
-            breakdown.travelOutNT = travelOutNT;
-            breakdown.travelOutOT = travelOutOT;
-            cost += (travelOutNT * rates.travel) + (travelOutOT * rates.travelOvertime);
-        }
-
-        if (shift.vehicle) cost += rates.vehicle;
-        if (shift.perDiem) cost += rates.perDiem;
-
-        return { cost, breakdown };
+    // Bridge to our verified logic
+    const calculateShiftBreakdown = (shift: Shift) => {
+        // We pass the current 'rates' state to the pure logic function
+        return calculateLogic(shift, rates);
     };
 
     const reportingCost = (jobDetails.reportingTime || 0) * rates.officeReporting;
