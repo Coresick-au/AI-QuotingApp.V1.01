@@ -28,7 +28,7 @@ export default function Dashboard({
     saveAsDefaults, resetToDefaults, savedDefaultRates
 }: DashboardProps) {
     const [view, setView] = useState<'quotes' | 'customers' | 'technicians'>('quotes');
-    const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'quoted' | 'invoice'>('all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'quoted' | 'invoice' | 'closed'>('all');
 
     const handleDelete = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -60,18 +60,12 @@ export default function Dashboard({
                         >
                             <Users size={18} /> Customers
                         </button>
-                        <button
-                            onClick={() => setView('technicians')}
-                            className={`px-4 py-2 rounded-md font-medium flex items-center gap-2 transition-colors ${view === 'technicians' ? 'bg-blue-100 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                        >
-                            <Wrench size={18} /> Technicians
-                        </button>
                     </div>
                 </div>
 
                 {view === 'quotes' && (
                     <div className="flex gap-2 mb-6">
-                        {(['all', 'draft', 'quoted', 'invoice'] as const).map((status) => (
+                        {(['all', 'draft', 'quoted', 'invoice', 'closed'] as const).map((status) => (
                             <button
                                 key={status}
                                 onClick={() => setFilterStatus(status)}
@@ -109,26 +103,31 @@ export default function Dashboard({
                                     onClick={() => loadQuote(quote.id)}
                                     className={`p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer relative group ${quote.status === 'draft' ? 'bg-slate-100' :
                                         quote.status === 'quoted' ? 'bg-yellow-50' :
-                                            'bg-purple-100'
+                                            quote.status === 'invoice' ? 'bg-purple-100' :
+                                                'bg-emerald-50 border-emerald-200'
                                         }`}
                                 >
                                     <div className="flex justify-between items-start mb-4">
                                         <div className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-wide ${quote.status === 'draft' ? 'bg-slate-100 text-slate-600' :
                                             quote.status === 'quoted' ? 'bg-amber-100 text-amber-700' :
-                                                'bg-purple-200 text-purple-800'
+                                                quote.status === 'invoice' ? 'bg-purple-200 text-purple-800' :
+                                                    'bg-emerald-100 text-emerald-700'
                                             }`}>
                                             {quote.status}
                                         </div>
-                                        <button
-                                            onClick={(e) => handleDelete(e, quote.id)}
-                                            className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-mono text-slate-500">#{quote.quoteNumber}</span>
+                                            <button
+                                                onClick={(e) => handleDelete(e, quote.id)}
+                                                className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">
-                                        {quote.jobDetails.jobNo || 'Untitled Job'}
+                                        {quote.jobDetails.jobNo ? `JOB${quote.jobDetails.jobNo}` : 'JOB-----'}
                                     </h3>
                                     <p className="text-slate-500 text-sm mb-4">
                                         {quote.jobDetails.customer || 'No Customer'}

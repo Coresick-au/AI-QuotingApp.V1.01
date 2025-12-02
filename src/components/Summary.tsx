@@ -1,6 +1,6 @@
 
-import { Copy, FileDown } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { Copy, Eye, ExternalLink, X } from 'lucide-react';
+import { useState } from 'react';
 import { useQuote } from '../hooks/useQuote';
 
 interface SummaryProps {
@@ -9,31 +9,29 @@ interface SummaryProps {
 
 export default function Summary({ quote }: SummaryProps) {
     const {
-        shifts, extras, rates, calculateShiftBreakdown, totalCost, jobDetails, status,
-        reportingCost, travelChargeCost
+        shifts, extras, rates, calculateShiftBreakdown, totalCost, jobDetails, setJobDetails, status,
+        reportingCost, travelChargeCost, isLocked
     } = quote;
+
+    const [showBreakdownModal, setShowBreakdownModal] = useState(false);
 
     const formatMoney = (amount: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
 
     const generateInvoiceString = () => {
-        // Calculate Totals
-        const siteNTCost = shifts.reduce((acc, s) => acc + (calculateShiftBreakdown(s).breakdown.siteNT * rates.siteNormal), 0);
-        const siteOTCost = shifts.reduce((acc, s) => {
+        // Calculate Totals - Unified labor costs
+        const totalNTCost = shifts.reduce((acc, s) => {
+            const { breakdown } = calculateShiftBreakdown(s);
+            return acc + ((breakdown.siteNT + breakdown.travelInNT + breakdown.travelOutNT) * rates.siteNormal);
+        }, 0);
+
+        const totalOTCost = shifts.reduce((acc, s) => {
             const { breakdown } = calculateShiftBreakdown(s);
             const rate = s.dayType === 'publicHoliday' ? rates.publicHoliday : (s.dayType === 'weekend' ? rates.weekend : rates.siteOvertime);
-            return acc + (breakdown.siteOT * rate);
+            return acc + ((breakdown.siteOT + breakdown.travelInOT + breakdown.travelOutOT) * rate);
         }, 0);
-        const travelNTCost = shifts.reduce((acc, s) => {
-            const { breakdown } = calculateShiftBreakdown(s);
-            return acc + (breakdown.travelInNT * rates.travel) + (breakdown.travelOutNT * rates.travel);
-        }, 0);
-        const travelOTCost = shifts.reduce((acc, s) => {
-            const { breakdown } = calculateShiftBreakdown(s);
-            return acc + (breakdown.travelInOT * rates.travelOvertime) + (breakdown.travelOutOT * rates.travelOvertime);
-        }, 0);
+
         const vehicleCost = shifts.filter(s => s.vehicle).length * rates.vehicle;
         const perDiemCost = shifts.filter(s => s.perDiem).length * rates.perDiem;
-        const extrasCost = extras.reduce((acc, item) => acc + (item.cost || 0), 0);
 
         // Admin Header
         const variance = totalCost - (jobDetails.quotedAmount || 0);
@@ -49,25 +47,32 @@ export default function Summary({ quote }: SummaryProps) {
             body += '\n';
         }
 
-        // Financial Breakdown
+        // Financial Breakdown - Consolidated Labor
         body += `\n---\nFinancial Breakdown:\n`;
-        body += `Site Labor (Normal): ${formatMoney(siteNTCost)}\n`;
-        body += `Site Labor (Overtime): ${formatMoney(siteOTCost)}\n`;
-        body += `Travel Labor (NT): ${formatMoney(travelNTCost)}\n`;
-        body += `Travel Labor (OT): ${formatMoney(travelOTCost)}\n`;
+        body += `Labor (Normal): ${formatMoney(totalNTCost)}\n`;
+        body += `Labor (Overtime): ${formatMoney(totalOTCost)}\n`;
 
         if (vehicleCost > 0) body += `Vehicle Allowances: ${formatMoney(vehicleCost)}\n`;
         if (perDiemCost > 0) body += `Per Diems: ${formatMoney(perDiemCost)}\n`;
         if (reportingCost > 0) body += `Reporting Time: ${formatMoney(reportingCost)}\n`;
         if (travelChargeCost > 0) body += `Travel Charge: ${formatMoney(travelChargeCost)}\n`;
 
-        if (extrasCost > 0) {
-            extras.filter(e => e.cost > 0).forEach(extra => {
-                body += `${extra.description}: ${formatMoney(extra.cost)}\n`;
-            });
-        }
+        // Break down extras individually
+        extras.filter(e => (e.cost || 0) > 0).forEach(extra => {
+            body += `${extra.description}: ${formatMoney(extra.cost || 0)}\n`;
+        });
 
         body += `\nTotal: ${formatMoney(totalCost)}`;
+
+        // Append Xero link if exists
+        if (jobDetails.externalLink) {
+            body += `\n\nLink to Xero Quote: ${jobDetails.externalLink}`;
+        }
+
+        // Append comments if exist
+        if (jobDetails.adminComments) {
+            body += `\n\nComments: ${jobDetails.adminComments}`;
+        }
 
         return body;
     };
@@ -77,40 +82,29 @@ export default function Summary({ quote }: SummaryProps) {
         alert("Copied to clipboard!");
     };
 
-    const exportPDF = () => {
-        const doc = new jsPDF();
+    const generateShiftBreakdown = () => {
+        let breakdown = 'SHIFT BREAKDOWN\n\n';
 
-        doc.setFontSize(20);
-        doc.text(`Service ${status === 'invoice' ? 'Invoice' : 'Quote'}`, 20, 20);
-
-        doc.setFontSize(12);
-        doc.text(`Customer: ${jobDetails.customer}`, 20, 35);
-        doc.text(`Job No: ${jobDetails.jobNo}`, 20, 42);
-        doc.text(`Technician: ${jobDetails.techName}`, 20, 49);
-        doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 35);
-
-        let y = 65;
-        doc.setFontSize(14);
-        doc.text("Shift Breakdown", 20, y);
-        y += 10;
-
-        doc.setFontSize(10);
-        shifts.forEach(s => {
-            const { breakdown } = calculateShiftBreakdown(s);
-            const line = `${s.date} | ${s.startTime}-${s.finishTime} | Site: ${breakdown.siteHours.toFixed(2)}h | Travel: ${(s.travelIn + s.travelOut).toFixed(2)}h`;
-            doc.text(line, 20, y);
-            y += 7;
+        shifts.forEach((shift, index) => {
+            const { breakdown: b } = calculateShiftBreakdown(shift);
+            breakdown += `Shift ${index + 1}:\n`;
+            breakdown += `Date: ${shift.date} | Tech: ${shift.tech}\n`;
+            breakdown += `Time: ${shift.startTime} - ${shift.finishTime}\n`;
+            breakdown += `Day Type: ${shift.dayType}${shift.isNightShift ? ' (Night Shift)' : ''}\n`;
+            breakdown += `\nHours Breakdown:\n`;
+            breakdown += `  Travel In NT: ${b.travelInNT.toFixed(2)}h | OT: ${b.travelInOT.toFixed(2)}h\n`;
+            breakdown += `  Site NT: ${b.siteNT.toFixed(2)}h | OT: ${b.siteOT.toFixed(2)}h\n`;
+            breakdown += `  Travel Out NT: ${b.travelOutNT.toFixed(2)}h | OT: ${b.travelOutOT.toFixed(2)}h\n`;
+            breakdown += `  Total Hours: ${b.totalHours.toFixed(2)}h (Site: ${b.siteHours.toFixed(2)}h)\n`;
+            breakdown += `\n`;
         });
 
-        y += 10;
-        doc.setFontSize(14);
-        doc.text("Financials", 20, y);
-        y += 10;
+        return breakdown;
+    };
 
-        doc.setFontSize(10);
-        doc.text(`Total Cost: ${formatMoney(totalCost)}`, 20, y);
-
-        doc.save(`${jobDetails.jobNo}_${status}.pdf`);
+    const copyBreakdown = () => {
+        navigator.clipboard.writeText(generateShiftBreakdown());
+        alert("Shift breakdown copied to clipboard!");
     };
 
     // Calculate individual allowances
@@ -118,176 +112,296 @@ export default function Summary({ quote }: SummaryProps) {
     const perDiemCount = shifts.filter(s => s.perDiem).length;
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 h-fit">
-                <h2 className="text-lg font-semibold mb-4 text-slate-700">Financial Summary</h2>
-
-                <div className="space-y-3">
-                    <div className="flex justify-between py-2 border-b border-slate-100">
-                        <span className="text-slate-600">Site Labor (Normal)</span>
-                        <span className="font-mono">
-                            {formatMoney(shifts.reduce((acc, s) => acc + (calculateShiftBreakdown(s).breakdown.siteNT * rates.siteNormal), 0))}
-                        </span>
+        <div className="space-y-6">
+            {/* Header with Finalize Buttons */}
+            {status === 'invoice' && (
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex justify-between items-center">
+                    <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded border border-purple-200 text-purple-800">
+                        <span className="text-sm font-medium">Invoice Mode - Ready to Finalize</span>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-slate-100">
-                        <span className="text-slate-600">Site Labor (Overtime)</span>
-                        <span className="font-mono">
-                            {formatMoney(shifts.reduce((acc, s) => {
-                                const { breakdown } = calculateShiftBreakdown(s);
-                                const rate = s.dayType === 'publicHoliday' ? rates.publicHoliday : (s.dayType === 'weekend' ? rates.weekend : rates.siteOvertime);
-                                return acc + (breakdown.siteOT * rate);
-                            }, 0))}
-                        </span>
+                    <button
+                        onClick={() => quote.setStatus('closed')}
+                        disabled={isLocked}
+                        className="bg-emerald-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-emerald-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Finalize & Close
+                    </button>
+                </div>
+            )}
+            {status === 'closed' && (
+                <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 flex justify-between items-center">
+                    <div className="flex items-center gap-2 text-emerald-700">
+                        <span className="text-sm font-medium">✓ Invoice Closed</span>
                     </div>
-                    <div className="flex justify-between py-2 border-b border-slate-100">
-                        <span className="text-slate-600">Travel Labor (NT)</span>
-                        <span className="font-mono">
-                            {formatMoney(shifts.reduce((acc, s) => {
-                                const { breakdown } = calculateShiftBreakdown(s);
-                                return acc + (breakdown.travelInNT * rates.travel) + (breakdown.travelOutNT * rates.travel);
-                            }, 0))}
-                        </span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-slate-100">
-                        <span className="text-slate-600">Travel Labor (OT)</span>
-                        <span className="font-mono">
-                            {formatMoney(shifts.reduce((acc, s) => {
-                                const { breakdown } = calculateShiftBreakdown(s);
-                                return acc + (breakdown.travelInOT * rates.travelOvertime) + (breakdown.travelOutOT * rates.travelOvertime);
-                            }, 0))}
-                        </span>
-                    </div>
+                    <button
+                        onClick={() => quote.setStatus('invoice')}
+                        className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-amber-700 font-medium"
+                    >
+                        Unlock to Edit
+                    </button>
+                </div>
+            )}
 
-                    {vehicleCount > 0 && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 h-fit">
+                    <h2 className="text-lg font-semibold mb-4 text-slate-700">Financial Summary</h2>
+
+                    <div className="space-y-3">
                         <div className="flex justify-between py-2 border-b border-slate-100">
-                            <span className="text-slate-600">Vehicle Allowance ({vehicleCount}x)</span>
+                            <span className="text-slate-600">Site Labor (Normal)</span>
                             <span className="font-mono">
-                                {formatMoney(vehicleCount * rates.vehicle)}
+                                {formatMoney(shifts.reduce((acc, s) => acc + (calculateShiftBreakdown(s).breakdown.siteNT * rates.siteNormal), 0))}
                             </span>
                         </div>
-                    )}
-
-                    {perDiemCount > 0 && (
                         <div className="flex justify-between py-2 border-b border-slate-100">
-                            <span className="text-slate-600">Per Diem ({perDiemCount}x)</span>
+                            <span className="text-slate-600">Site Labor (Overtime)</span>
                             <span className="font-mono">
-                                {formatMoney(perDiemCount * rates.perDiem)}
+                                {formatMoney(shifts.reduce((acc, s) => {
+                                    const { breakdown } = calculateShiftBreakdown(s);
+                                    const rate = s.dayType === 'publicHoliday' ? rates.publicHoliday : (s.dayType === 'weekend' ? rates.weekend : rates.siteOvertime);
+                                    return acc + (breakdown.siteOT * rate);
+                                }, 0))}
                             </span>
                         </div>
-                    )}
-
-                    {reportingCost > 0 && (
                         <div className="flex justify-between py-2 border-b border-slate-100">
-                            <span className="text-slate-600">Reporting Time ({jobDetails.reportingTime}h)</span>
+                            <span className="text-slate-600">Travel Labor (NT)</span>
                             <span className="font-mono">
-                                {formatMoney(reportingCost)}
+                                {formatMoney(shifts.reduce((acc, s) => {
+                                    const { breakdown } = calculateShiftBreakdown(s);
+                                    return acc + (breakdown.travelInNT * rates.travel) + (breakdown.travelOutNT * rates.travel);
+                                }, 0))}
                             </span>
                         </div>
-                    )}
-
-                    {travelChargeCost > 0 && (
                         <div className="flex justify-between py-2 border-b border-slate-100">
-                            <span className="text-slate-600">Travel Charge</span>
+                            <span className="text-slate-600">Travel Labor (OT)</span>
                             <span className="font-mono">
-                                {formatMoney(travelChargeCost)}
+                                {formatMoney(shifts.reduce((acc, s) => {
+                                    const { breakdown } = calculateShiftBreakdown(s);
+                                    return acc + (breakdown.travelInOT * rates.travelOvertime) + (breakdown.travelOutOT * rates.travelOvertime);
+                                }, 0))}
                             </span>
                         </div>
-                    )}
 
-                    {extras.filter(e => e.cost > 0).map((extra) => (
-                        <div key={extra.id} className="flex justify-between py-2 border-b border-slate-100">
-                            <span className="text-slate-600">{extra.description || 'Extra Item'}</span>
-                            <span className="font-mono">
-                                {formatMoney(parseFloat(extra.cost as any) || 0)}
-                            </span>
+                        {vehicleCount > 0 && (
+                            <div className="flex justify-between py-2 border-b border-slate-100">
+                                <span className="text-slate-600">Vehicle Allowance ({vehicleCount}x)</span>
+                                <span className="font-mono">
+                                    {formatMoney(vehicleCount * rates.vehicle)}
+                                </span>
+                            </div>
+                        )}
+
+                        {perDiemCount > 0 && (
+                            <div className="flex justify-between py-2 border-b border-slate-100">
+                                <span className="text-slate-600">Per Diem ({perDiemCount}x)</span>
+                                <span className="font-mono">
+                                    {formatMoney(perDiemCount * rates.perDiem)}
+                                </span>
+                            </div>
+                        )}
+
+                        {reportingCost > 0 && (
+                            <div className="flex justify-between py-2 border-b border-slate-100">
+                                <span className="text-slate-600">Reporting Time ({jobDetails.reportingTime}h)</span>
+                                <span className="font-mono">
+                                    {formatMoney(reportingCost)}
+                                </span>
+                            </div>
+                        )}
+
+                        {travelChargeCost > 0 && (
+                            <div className="flex justify-between py-2 border-b border-slate-100">
+                                <span className="text-slate-600">Travel Charge</span>
+                                <span className="font-mono">
+                                    {formatMoney(travelChargeCost)}
+                                </span>
+                            </div>
+                        )}
+
+                        {extras.filter(e => e.cost > 0).map((extra) => (
+                            <div key={extra.id} className="flex justify-between py-2 border-b border-slate-100">
+                                <span className="text-slate-600">{extra.description || 'Extra Item'}</span>
+                                <span className="font-mono">
+                                    {formatMoney(parseFloat(extra.cost as any) || 0)}
+                                </span>
+                            </div>
+                        ))}
+
+                        <div className="flex justify-between pt-4 text-xl font-bold">
+                            <span>Grand Total</span>
+                            <span>{formatMoney(totalCost)}</span>
                         </div>
-                    ))}
-
-                    <div className="flex justify-between pt-4 text-xl font-bold">
-                        <span>Grand Total</span>
-                        <span>{formatMoney(totalCost)}</span>
                     </div>
                 </div>
-            </div>
 
-            <div className="space-y-6">
-                {/* Admin Communication Section */}
-                <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-slate-700">Admin Communication</h2>
-                    </div>
+                <div className="space-y-6">
+                    {/* Admin Communication Section */}
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-semibold text-slate-700">Admin Communication</h2>
+                        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">
+                                    Job Number
+                                </label>
+                                <input
+                                    type="text"
+                                    value={jobDetails.jobNo || ''}
+                                    onChange={(e) => quote.setJobDetails({ ...jobDetails, jobNo: e.target.value })}
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="e.g. J123456"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">
+                                    External Link
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={jobDetails.externalLink || ''}
+                                        onChange={(e) => quote.setJobDetails({ ...jobDetails, externalLink: e.target.value })}
+                                        className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="https://..."
+                                    />
+                                    {jobDetails.externalLink && (
+                                        <button
+                                            onClick={() => window.open(jobDetails.externalLink, '_blank')}
+                                            className="p-2 bg-slate-100 text-slate-600 rounded hover:bg-slate-200"
+                                            title="Open Link"
+                                        >
+                                            <ExternalLink size={18} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-slate-600 mb-1">
-                                Original Quote / PO Amount
+                                Additional Comments
                             </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-2.5 text-slate-400">$</span>
+                            <textarea
+                                value={jobDetails.adminComments || ''}
+                                onChange={(e) => setJobDetails({ ...jobDetails, adminComments: e.target.value })}
+                                disabled={isLocked}
+                                className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none h-20 ${isLocked ? 'bg-slate-100' : ''}`}
+                                placeholder="Additional notes for admin..."
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">
+                                    Original Quote / PO Amount
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2.5 text-slate-400">$</span>
+                                    <input
+                                        type="number"
+                                        value={jobDetails.quotedAmount || ''}
+                                        onChange={(e) => quote.setJobDetails({ ...jobDetails, quotedAmount: parseFloat(e.target.value) || 0 })}
+                                        className="w-full pl-7 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-600 mb-1">
+                                    Variance Reason
+                                </label>
                                 <input
-                                    type="number"
-                                    value={jobDetails.quotedAmount || ''}
-                                    onChange={(e) => quote.setJobDetails({ ...jobDetails, quotedAmount: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-7 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                    placeholder="0.00"
+                                    type="text"
+                                    value={jobDetails.varianceReason || ''}
+                                    onChange={(e) => quote.setJobDetails({ ...jobDetails, varianceReason: e.target.value })}
+                                    className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="e.g. Extra site time requested..."
                                 />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-600 mb-1">
-                                Variance Reason
-                            </label>
-                            <input
-                                type="text"
-                                value={jobDetails.varianceReason || ''}
-                                onChange={(e) => quote.setJobDetails({ ...jobDetails, varianceReason: e.target.value })}
-                                className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="e.g. Extra site time requested..."
-                            />
+
+                        <div className="bg-slate-50 p-3 rounded border border-slate-200 flex justify-between items-center mb-4">
+                            <span className="text-sm font-medium text-slate-600">Total to Invoice: {formatMoney(totalCost)}</span>
+                            {(jobDetails.quotedAmount || 0) > 0 && (
+                                <span className={`text-sm font-bold ${totalCost > (jobDetails.quotedAmount || 0) ? 'text-red-600' : 'text-green-600'}`}>
+                                    Difference: {formatMoney(totalCost - (jobDetails.quotedAmount || 0))}
+                                    {Math.abs(totalCost - (jobDetails.quotedAmount || 0)) > 0.01 ? (totalCost > (jobDetails.quotedAmount || 0) ? ' (Higher)' : ' (Lower)') : ''}
+                                </span>
+                            )}
                         </div>
                     </div>
 
-                    <div className="bg-slate-50 p-3 rounded border border-slate-200 flex justify-between items-center mb-4">
-                        <span className="text-sm font-medium text-slate-600">Total to Invoice: {formatMoney(totalCost)}</span>
-                        {(jobDetails.quotedAmount || 0) > 0 && (
-                            <span className={`text-sm font-bold ${totalCost > (jobDetails.quotedAmount || 0) ? 'text-red-600' : 'text-green-600'}`}>
-                                Difference: {formatMoney(totalCost - (jobDetails.quotedAmount || 0))}
-                                {Math.abs(totalCost - (jobDetails.quotedAmount || 0)) > 0.01 ? (totalCost > (jobDetails.quotedAmount || 0) ? ' (Higher)' : ' (Lower)') : ''}
-                            </span>
-                        )}
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-lg font-semibold text-slate-700">Invoice Copy</h2>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowBreakdownModal(true)}
+                                    className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
+                                >
+                                    <Eye size={16} /> See Shift Breakdown Hours
+                                </button>
+                                <button
+                                    onClick={copyToClipboard}
+                                    className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
+                                >
+                                    <Copy size={16} /> Copy Email
+                                </button>
+                            </div>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-2">
+                            Copy this block and paste it directly into your email or accounting software.
+                        </p>
+                        <textarea
+                            readOnly
+                            className="w-full h-64 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
+                            value={generateInvoiceString()}
+                        />
                     </div>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-slate-700">Invoice Copy</h2>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={exportPDF}
-                                className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
-                            >
-                                <FileDown size={16} /> PDF
-                            </button>
-                            <button
-                                onClick={copyToClipboard}
-                                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
-                            >
-                                <Copy size={16} /> Copy Email
-                            </button>
+                {/* Shift Breakdown Modal */}
+                {showBreakdownModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowBreakdownModal(false)}>
+                        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-between items-center p-6 border-b">
+                                <h2 className="text-xl font-semibold text-slate-800">Shift Breakdown Hours</h2>
+                                <button
+                                    onClick={() => setShowBreakdownModal(false)}
+                                    className="text-slate-400 hover:text-slate-600"
+                                >
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto max-h-[calc(80vh-140px)]">
+                                <textarea
+                                    readOnly
+                                    className="w-full h-96 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
+                                    value={generateShiftBreakdown()}
+                                />
+                            </div>
+                            <div className="flex justify-end gap-2 p-6 border-t bg-slate-50">
+                                <button
+                                    onClick={copyBreakdown}
+                                    className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700"
+                                >
+                                    <Copy size={16} /> Copy Breakdown
+                                </button>
+                                <button
+                                    onClick={() => setShowBreakdownModal(false)}
+                                    className="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <p className="text-sm text-slate-500 mb-2">
-                        Copy this block and paste it directly into your email or accounting software.
-                    </p>
-                    <textarea
-                        readOnly
-                        className="w-full h-64 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
-                        value={generateInvoiceString()}
-                    />
-                </div>
+                )}
+
             </div>
-
         </div>
     );
 }

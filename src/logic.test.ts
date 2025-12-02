@@ -25,14 +25,10 @@ describe('Business Logic - Shift Calculations', () => {
         // Travel In: 0.5h
         // Travel Out: 0.5h
         // Site Hours: 7h
-        // Logic:
-        // 1. Travel In (0.5) -> Consumes NT (0.5/7.5 used) -> Cost: 0.5 * 80 = 40
-        // 2. Site (7.0) -> Consumes NT (7.0/7.5 used) -> Cost: 7.0 * 100 = 700
-        // 3. Travel Out (0.5) -> Consumes remaining NT? No, 0.5+7.0 = 7.5. So Travel Out is OT?
-        // Wait, 0.5 (Travel In) + 7.0 (Site) = 7.5.
-        // So Travel Out starts at 7.5.
-        // Travel Out (0.5) -> All OT. -> Cost: 0.5 * 100 = 50.
-        // Total Cost: 40 + 700 + 50 = 790.
+        // Unified Logic (Travel = Site rate):
+        // Total NT: 0.5 (Travel In) + 7.0 (Site) + 0 (Travel Out) = 7.5h -> Cost: 7.5 * 100 = 750
+        // Total OT: 0 (Travel In) + 0 (Site) + 0.5 (Travel Out) = 0.5h -> Cost: 0.5 * 150 = 75
+        // Total Cost: 750 + 75 = 825
 
         const shift: Shift = {
             id: 1,
@@ -57,11 +53,11 @@ describe('Business Logic - Shift Calculations', () => {
         expect(result.breakdown.travelInOT).toBe(0);
         expect(result.breakdown.siteNT).toBe(7);
         expect(result.breakdown.siteOT).toBe(0);
-        expect(result.breakdown.travelOutNT).toBe(0); // Cap reached exactly at end of site time
+        expect(result.breakdown.travelOutNT).toBe(0);
         expect(result.breakdown.travelOutOT).toBe(0.5);
 
-        // Cost check
-        expect(result.cost).toBe(790);
+        // Cost check - Unified rates
+        expect(result.cost).toBe(825);
     });
 
     it('Heavy Overtime Weekday: 6am-6pm (12h) with 1h Travel In/Out', () => {
@@ -69,14 +65,10 @@ describe('Business Logic - Shift Calculations', () => {
         // Travel In: 1h
         // Travel Out: 1h
         // Site Hours: 10h
-        // Logic:
-        // 1. Travel In (1.0) -> Consumes NT (1.0/7.5 used) -> Cost: 1 * 80 = 80
-        // 2. Site (10.0) -> 
-        //    - NT Remaining: 6.5.
-        //    - Site NT: 6.5 -> Cost: 6.5 * 100 = 650
-        //    - Site OT: 3.5 -> Cost: 3.5 * 150 = 525
-        // 3. Travel Out (1.0) -> All OT -> Cost: 1 * 100 = 100
-        // Total Cost: 80 + 650 + 525 + 100 = 1355.
+        // Unified Logic (Travel = Site rate):
+        // Total NT: 1.0 (Travel In) + 6.5 (Site) + 0 (Travel Out) = 7.5h -> Cost: 7.5 * 100 = 750
+        // Total OT: 0 (Travel In) + 3.5 (Site) + 1.0 (Travel Out) = 4.5h -> Cost: 4.5 * 150 = 675
+        // Total Cost: 750 + 675 = 1425
 
         const shift: Shift = {
             id: 2,
@@ -101,15 +93,15 @@ describe('Business Logic - Shift Calculations', () => {
         expect(result.breakdown.siteOT).toBe(3.5);
         expect(result.breakdown.travelOutOT).toBe(1);
 
-        expect(result.cost).toBe(1355);
+        // Cost check - Unified rates
+        expect(result.cost).toBe(1425);
     });
 
-    it('Weekend: Ensure ALL site hours use Weekend rate and Travel uses OT rate', () => {
+    it('Weekend: Ensure ALL hours use Weekend rate (unified)', () => {
         // 8am-4pm (8h). Travel 0.5 each. Site 7h.
-        // Travel In: 0.5 * 100 (OT) = 50
-        // Site: 7 * 200 (Weekend) = 1400
-        // Travel Out: 0.5 * 100 (OT) = 50
-        // Total: 1500
+        // Unified Logic: All hours at weekend rate
+        // Total Hours: 0.5 (Travel In) + 7 (Site) + 0.5 (Travel Out) = 8h
+        // Cost: 8 * 200 (Weekend) = 1600
 
         const shift: Shift = {
             id: 3,
@@ -127,15 +119,14 @@ describe('Business Logic - Shift Calculations', () => {
         const result = calculateShiftBreakdown(shift, MOCK_RATES);
 
         expect(result.breakdown.siteHours).toBe(7);
-        expect(result.cost).toBe(1500);
+        expect(result.cost).toBe(1600);
     });
 
-    it('Public Holiday: Ensure ALL site hours use Public Holiday rate', () => {
+    it('Public Holiday: Ensure ALL hours use Public Holiday rate (unified)', () => {
         // 8am-4pm (8h). Travel 0.5 each. Site 7h.
-        // Travel In: 0.5 * 250 (PH) = 125
-        // Site: 7 * 250 (PH) = 1750
-        // Travel Out: 0.5 * 250 (PH) = 125
-        // Total: 2000
+        // Unified Logic: All hours at public holiday rate
+        // Total Hours: 0.5 (Travel In) + 7 (Site) + 0.5 (Travel Out) = 8h
+        // Cost: 8 * 250 (PH) = 2000
 
         const shift: Shift = {
             id: 4,
@@ -157,10 +148,10 @@ describe('Business Logic - Shift Calculations', () => {
     });
 
     it('Allowances: Vehicle and Per Diem add correctly', () => {
-        // Base shift: Standard Weekday (Cost 790)
+        // Base shift: Standard Weekday (Cost 825 with unified rates)
         // + Vehicle (50)
         // + Per Diem (100)
-        // Total = 790 + 50 + 100 = 940
+        // Total = 825 + 50 + 100 = 975
 
         const shift: Shift = {
             id: 5,
@@ -177,6 +168,37 @@ describe('Business Logic - Shift Calculations', () => {
 
         const result = calculateShiftBreakdown(shift, MOCK_RATES);
 
-        expect(result.cost).toBe(940);
+        expect(result.cost).toBe(975);
+    });
+
+    it('Night Shift: All hours should be OT (unified rates)', () => {
+        // Weekday, 10 hours site time + 1 hour travel (0.5 in, 0.5 out).
+        // Total Duration: 11h.
+        // isNightShift = true.
+        // Unified Logic: All hours at OT rate
+        // Total OT: 0.5 (Travel In) + 10 (Site) + 0.5 (Travel Out) = 11h
+        // Cost: 11 * 150 (siteOvertime) = 1650
+
+        const shift: Shift = {
+            id: 6,
+            date: '2023-10-27',
+            dayType: 'weekday',
+            startTime: '08:00',
+            finishTime: '19:00',
+            travelIn: 0.5,
+            travelOut: 0.5,
+            vehicle: false,
+            perDiem: false,
+            tech: 'Test Tech',
+            isNightShift: true
+        };
+
+        const result = calculateShiftBreakdown(shift, MOCK_RATES);
+
+        expect(result.breakdown.siteNT).toBe(0);
+        expect(result.breakdown.siteOT).toBe(10);
+        expect(result.breakdown.travelInOT).toBe(0.5);
+        expect(result.breakdown.travelOutOT).toBe(0.5);
+        expect(result.cost).toBe(1650);
     });
 });

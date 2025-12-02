@@ -285,7 +285,7 @@ export default function RatesConfig({ rates, setRates, saveAsDefaults, resetToDe
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                     <div>
-                        <label className="block text-sm text-slate-600 mb-1">Travel Rate - Normal Time</label>
+                        <label className="block text-sm text-slate-600 mb-1">Travel Rate</label>
                         <div className="flex items-center gap-2">
                             <span className="text-slate-500">$</span>
                             <input
@@ -327,7 +327,7 @@ export default function RatesConfig({ rates, setRates, saveAsDefaults, resetToDe
                                     type="number"
                                     placeholder="0"
                                     value={calcHours || ''}
-                                    className="w-20 p-2 border rounded"
+                                    className="w-20 p-2 border rounded bg-white"
                                     onChange={(e) => setCalcHours(parseFloat(e.target.value) || 0)}
                                 />
                                 <span className="text-slate-500 text-sm">hrs</span>
@@ -341,7 +341,7 @@ export default function RatesConfig({ rates, setRates, saveAsDefaults, resetToDe
                                     type="number"
                                     placeholder="0"
                                     value={calcKm || ''}
-                                    className="w-24 p-2 border rounded"
+                                    className="w-24 p-2 border rounded bg-white"
                                     onChange={(e) => setCalcKm(parseFloat(e.target.value) || 0)}
                                 />
                                 <span className="text-slate-500 text-sm">km</span>

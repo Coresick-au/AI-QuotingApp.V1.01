@@ -1,6 +1,5 @@
-
 import { useState, useEffect } from 'react';
-import type { Rates, JobDetails, Shift, ExtraItem, Quote, Customer } from '../types';
+import type { Rates, JobDetails, Shift, ExtraItem, Quote, Customer, Status } from '../types';
 import { calculateShiftBreakdown as calculateLogic } from '../logic';
 
 
@@ -31,7 +30,9 @@ const DEFAULT_JOB_DETAILS: JobDetails = {
     includeTravelCharge: false,
     travelDistance: 0,
     quotedAmount: 0,
-    varianceReason: ''
+    varianceReason: '',
+    externalLink: '',
+    adminComments: ''
 };
 
 const DEFAULT_SHIFTS: Shift[] = [
@@ -45,7 +46,8 @@ const DEFAULT_SHIFTS: Shift[] = [
         travelOut: 0.5,
         vehicle: true,
         perDiem: false,
-        tech: 'Tech 1'
+        tech: 'Tech 1',
+        isNightShift: false
     }
 ];
 
@@ -64,7 +66,7 @@ export function useQuote() {
     const [isLoaded, setIsLoaded] = useState(false);
 
     // Active Quote State
-    const [status, setStatus] = useState<'draft' | 'quoted' | 'invoice'>('draft');
+    const [status, setStatus] = useState<Status>('draft');
     const [rates, setRates] = useState<Rates>(DEFAULT_RATES);
     const [jobDetails, setJobDetails] = useState<JobDetails>(DEFAULT_JOB_DETAILS);
     const [shifts, setShifts] = useState<Shift[]>(DEFAULT_SHIFTS);
@@ -105,12 +107,6 @@ export function useQuote() {
             try {
                 const loadedRates = JSON.parse(savedDR);
                 setSavedDefaultRates(loadedRates);
-                // Only set active rates to defaults if we are initializing a fresh state (not implemented here, but good practice)
-                // For now, initial state uses DEFAULT_RATES constant, but we could update it here if needed.
-                // However, since we might be loading a quote, we shouldn't overwrite 'rates' here.
-                // But if we are starting fresh, we might want to use these.
-                // Since 'rates' is initialized with DEFAULT_RATES constant, let's update it if no quote is active?
-                // Actually, let's just keep 'rates' as is. The user can "Reset to Defaults".
             } catch (e) {
                 console.error("Failed to load default rates", e);
             }
@@ -153,8 +149,17 @@ export function useQuote() {
 
     const createNewQuote = () => {
         const newId = crypto.randomUUID();
+
+        // Auto-increment Quote Number
+        const maxQuoteNum = savedQuotes.reduce((max, q) => {
+            const num = parseInt(q.quoteNumber || '0', 10);
+            return num > max ? num : max;
+        }, 0);
+        const nextQuoteNum = (maxQuoteNum + 1).toString().padStart(4, '0');
+
         const newQuote: Quote = {
             id: newId,
+            quoteNumber: nextQuoteNum,
             lastModified: Date.now(),
             status: 'draft',
             rates: savedDefaultRates, // Use saved defaults for new quotes
@@ -224,7 +229,7 @@ export function useQuote() {
         setRates(savedDefaultRates);
     };
 
-    const isLocked = status === 'quoted';
+    const isLocked = status === 'quoted' || status === 'closed';
 
     // Helpers
     // Bridge to our verified logic
@@ -235,9 +240,7 @@ export function useQuote() {
 
     const reportingCost = (jobDetails.reportingTime || 0) * rates.officeReporting;
 
-    const travelChargeCost = jobDetails.includeTravelCharge
-        ? (rates.travelChargeExBrisbane || 0) * jobDetails.technicians.length
-        : 0;
+    const travelChargeCost = (rates.travelChargeExBrisbane || 0) * jobDetails.technicians.length;
 
     const totalCost = shifts.reduce((acc, shift) => acc + (calculateShiftBreakdown(shift).cost || 0), 0) +
         extras.reduce((acc, item) => acc + (item.cost || 0), 0) +
@@ -272,7 +275,8 @@ export function useQuote() {
             travelOut: 0.5,
             vehicle: true,
             perDiem: false,
-            tech: prevTech
+            tech: prevTech,
+            isNightShift: false
         }]);
     };
 
@@ -299,6 +303,21 @@ export function useQuote() {
     const removeExtra = (id: number) => {
         if (isLocked) return;
         setExtras(extras.filter(e => e.id !== id));
+    };
+
+    const renameTechnician = (index: number, newName: string) => {
+        if (isLocked) return;
+        const oldName = jobDetails.technicians[index];
+
+        // Update technician name in jobDetails
+        const newTechs = [...jobDetails.technicians];
+        newTechs[index] = newName;
+        setJobDetails({ ...jobDetails, technicians: newTechs });
+
+        // Sync all shifts that have the old name
+        setShifts(shifts.map(s =>
+            s.tech === oldName ? { ...s, tech: newName } : s
+        ));
     };
 
     return {
@@ -334,6 +353,7 @@ export function useQuote() {
         addExtra,
         updateExtra,
         removeExtra,
+        renameTechnician,
 
         // Calculations
         calculateShiftBreakdown,

@@ -1,4 +1,4 @@
-export type Status = 'draft' | 'quoted' | 'invoice';
+export type Status = 'draft' | 'quoted' | 'invoice' | 'closed';
 
 export interface Rates {
     siteNormal: number;
@@ -34,6 +34,8 @@ export interface JobDetails {
     travelDistance: number; // km
     quotedAmount?: number;
     varianceReason?: string;
+    externalLink?: string;
+    adminComments?: string;
 }
 
 export interface Shift {
@@ -47,6 +49,7 @@ export interface Shift {
     vehicle: boolean;
     perDiem: boolean;
     tech: string;
+    isNightShift?: boolean;
 }
 
 export interface ExtraItem {
@@ -73,6 +76,7 @@ export interface CalculatedShift {
 
 export interface Quote {
     id: string;
+    quoteNumber: string;
     lastModified: number;
     status: Status;
     rates: Rates;

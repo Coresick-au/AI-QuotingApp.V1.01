@@ -47,6 +47,7 @@ export default function Timesheet({
                         <th className="p-3 w-20 text-center text-blue-800 bg-blue-50">Trav Out</th>
                         <th className="p-3 w-20 text-center font-bold">Site Hrs</th>
                         <th className="p-3 w-20 text-center font-bold text-slate-700">Total Hrs</th>
+                        <th className="p-3 w-10 text-center">Night?</th>
                         <th className="p-3 w-10 text-center">Veh?</th>
                         <th className="p-3 w-10 text-center">P.D?</th>
                         <th className="p-3 text-right">Cost</th>
@@ -130,6 +131,15 @@ export default function Timesheet({
                                 </td>
                                 <td className="p-3 text-center">
                                     <div className="font-bold text-slate-900 bg-slate-100 rounded px-1">{breakdown.totalHours.toFixed(2)}</div>
+                                </td>
+                                <td className="p-3 text-center">
+                                    <input
+                                        disabled={isLocked}
+                                        type="checkbox"
+                                        checked={shift.isNightShift || false}
+                                        onChange={(e) => updateShift(shift.id, 'isNightShift', e.target.checked)}
+                                        className="w-4 h-4 accent-blue-600"
+                                    />
                                 </td>
                                 <td className="p-3 text-center">
                                     <input

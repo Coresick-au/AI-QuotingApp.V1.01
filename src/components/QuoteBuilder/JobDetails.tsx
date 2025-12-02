@@ -1,5 +1,5 @@
 
-import { MapPin, Users, FileText, Briefcase, Plus, X } from 'lucide-react';
+import { MapPin, Users, Briefcase, Plus, X } from 'lucide-react';
 import type { JobDetails as JobDetailsType, Customer, Rates } from '../../types';
 
 interface JobDetailsProps {
@@ -8,11 +8,11 @@ interface JobDetailsProps {
     isLocked: boolean;
     savedCustomers: Customer[];
     setRates: (rates: Rates) => void;
-    status: 'draft' | 'quoted' | 'invoice';
+    renameTechnician: (index: number, newName: string) => void;
 }
 
 export default function JobDetails({
-    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, status
+    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, renameTechnician
 }: JobDetailsProps) {
 
     const handleCustomerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,9 +41,7 @@ export default function JobDetails({
 
     const updateTechnician = (index: number, value: string) => {
         if (isLocked) return;
-        const newTechs = [...jobDetails.technicians];
-        newTechs[index] = value;
-        setJobDetails({ ...jobDetails, technicians: newTechs });
+        renameTechnician(index, value);
     };
 
     return (
@@ -74,21 +72,7 @@ export default function JobDetails({
                     </datalist>
                 </div>
 
-                {status === 'invoice' && (
-                    <div>
-                        <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
-                            <FileText size={16} /> Job Number
-                        </label>
-                        <input
-                            type="text"
-                            disabled={isLocked}
-                            value={jobDetails.jobNo}
-                            onChange={(e) => setJobDetails({ ...jobDetails, jobNo: e.target.value })}
-                            className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none ${isLocked ? 'bg-slate-100 text-slate-500' : ''}`}
-                            placeholder="e.g. J123456"
-                        />
-                    </div>
-                )}
+
 
                 <div>
                     <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">

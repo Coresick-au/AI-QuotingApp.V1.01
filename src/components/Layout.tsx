@@ -53,15 +53,6 @@ export default function Layout({ children, activeTab, setActiveTab, status, tota
                         <Calendar size={18} /> {status === 'invoice' ? 'Invoice Builder' : 'Quote Builder'}
                     </button>
                     <button
-                        onClick={() => setActiveTab('rates')}
-                        className={clsx(
-                            "flex items-center gap-2 pb-2 border-b-2 transition-colors",
-                            activeTab === 'rates' ? 'border-blue-600 text-blue-600 font-medium' : 'border-transparent text-slate-500'
-                        )}
-                    >
-                        <Settings size={18} /> Rates Configuration
-                    </button>
-                    <button
                         onClick={() => setActiveTab('summary')}
                         className={clsx(
                             "flex items-center gap-2 pb-2 border-b-2 transition-colors",
@@ -69,6 +60,15 @@ export default function Layout({ children, activeTab, setActiveTab, status, tota
                         )}
                     >
                         <FileText size={18} /> Summary
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('rates')}
+                        className={clsx(
+                            "flex items-center gap-2 pb-2 border-b-2 transition-colors",
+                            activeTab === 'rates' ? 'border-blue-600 text-blue-600 font-medium' : 'border-transparent text-slate-500'
+                        )}
+                    >
+                        <Settings size={18} /> Rates Configuration
                     </button>
                 </div>
             </nav>

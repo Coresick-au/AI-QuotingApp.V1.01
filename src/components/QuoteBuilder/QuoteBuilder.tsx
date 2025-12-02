@@ -16,7 +16,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
         shifts, addShift, updateShift, removeShift, calculateShiftBreakdown,
         extras, addExtra, updateExtra, removeExtra,
         isLocked, exitQuote, savedQuotes, loadQuote, activeQuoteId,
-        savedCustomers, setRates
+        savedCustomers, setRates, renameTechnician
     } = quote;
 
     const saveQuoteToSystem = () => {
@@ -97,9 +97,28 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
                         </div>
                     )}
                     {status === 'invoice' && (
-                        <div className="flex items-center gap-3 bg-purple-50 px-4 py-2 rounded border border-purple-200 text-purple-800">
-                            <Unlock size={14} />
-                            <span className="text-sm font-medium">Invoice Mode: Adjust hours to actuals</span>
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded border border-purple-200 text-purple-800">
+                                <Unlock size={14} />
+                                <span className="text-sm font-medium">Invoice Mode</span>
+                            </div>
+                            <button
+                                onClick={() => setStatus('closed')}
+                                className="bg-emerald-600 text-white px-4 py-2 rounded shadow flex items-center gap-2 hover:bg-emerald-700 font-medium"
+                            >
+                                <FileCheck size={18} /> Finalize & Close
+                            </button>
+                        </div>
+                    )}
+                    {status === 'closed' && (
+                        <div className="flex items-center gap-3">
+                            <span className="text-slate-500 text-sm flex items-center gap-1"><Lock size={14} /> Invoice Closed</span>
+                            <button
+                                onClick={() => setStatus('invoice')}
+                                className="bg-amber-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-amber-700 font-medium"
+                            >
+                                <Unlock size={16} /> Unlock to Edit
+                            </button>
                         </div>
                     )}
                 </div>
@@ -111,7 +130,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
                 isLocked={isLocked}
                 savedCustomers={savedCustomers}
                 setRates={setRates}
-                status={status}
+                renameTechnician={renameTechnician}
             />
 
             <Timesheet
