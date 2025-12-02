@@ -16,7 +16,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
         shifts, addShift, updateShift, removeShift, calculateShiftBreakdown,
         extras, addExtra, updateExtra, removeExtra,
         isLocked, exitQuote, savedQuotes, loadQuote, activeQuoteId,
-        savedCustomers, setRates, savedTechnicians
+        savedCustomers, setRates
     } = quote;
 
     const saveQuoteToSystem = () => {
@@ -47,7 +47,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
                 <div className="flex items-center gap-4">
                     <button
                         onClick={exitQuote}
-                        className="text-slate-500 hover:text-slate-700 flex items-center gap-1 text-sm font-medium"
+                        className="bg-slate-800 text-white px-4 py-2 rounded shadow hover:bg-slate-700 flex items-center gap-2 transition-colors"
                     >
                         <ArrowLeft size={16} /> Back to Dashboard
                     </button>
@@ -111,13 +111,11 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
                 isLocked={isLocked}
                 savedCustomers={savedCustomers}
                 setRates={setRates}
-                savedTechnicians={savedTechnicians}
                 status={status}
             />
 
             <Timesheet
                 shifts={shifts}
-                technicians={savedTechnicians}
                 isLocked={isLocked}
                 addShift={addShift}
                 updateShift={updateShift}

@@ -62,7 +62,9 @@ export default function Summary({ quote }: SummaryProps) {
         if (travelChargeCost > 0) body += `Travel Charge: ${formatMoney(travelChargeCost)}\n`;
 
         if (extrasCost > 0) {
-            body += `Extras: ${formatMoney(extrasCost)}\n`;
+            extras.filter(e => e.cost > 0).forEach(extra => {
+                body += `${extra.description}: ${formatMoney(extra.cost)}\n`;
+            });
         }
 
         body += `\nTotal: ${formatMoney(totalCost)}`;

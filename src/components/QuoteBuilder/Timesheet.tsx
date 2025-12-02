@@ -4,7 +4,6 @@ import type { Shift, CalculatedShift } from '../../types';
 
 interface TimesheetProps {
     shifts: Shift[];
-    technicians: string[];
     isLocked: boolean;
     addShift: () => void;
     updateShift: (id: number, field: keyof Shift, value: any) => void;
@@ -15,7 +14,6 @@ interface TimesheetProps {
 
 export default function Timesheet({
     shifts,
-    technicians,
     isLocked,
     addShift,
     updateShift,
@@ -70,16 +68,13 @@ export default function Timesheet({
                                     />
                                 </td>
                                 <td className="p-3">
-                                    <select
+                                    <input
+                                        type="text"
                                         disabled={isLocked}
-                                        className={`border rounded p-1 w-full ${isLocked ? 'bg-slate-100' : 'bg-white'}`}
+                                        className={`border rounded p-1 w-full ${isLocked ? 'bg-slate-100' : ''}`}
                                         value={shift.tech}
                                         onChange={(e) => updateShift(shift.id, 'tech', e.target.value)}
-                                    >
-                                        {technicians.map((t, i) => (
-                                            <option key={i} value={t}>{t}</option>
-                                        ))}
-                                    </select>
+                                    />
                                 </td>
                                 <td className="p-3">
                                     <select

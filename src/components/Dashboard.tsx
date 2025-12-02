@@ -39,7 +39,7 @@ export default function Dashboard({
 
     return (
         <div className="min-h-screen bg-slate-50 p-6">
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-[95%] mx-auto">
                 {/* Header & Tabs */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                     <div>
@@ -107,12 +107,15 @@ export default function Dashboard({
                                 <div
                                     key={quote.id}
                                     onClick={() => loadQuote(quote.id)}
-                                    className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer relative group"
+                                    className={`p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer relative group ${quote.status === 'draft' ? 'bg-slate-100' :
+                                        quote.status === 'quoted' ? 'bg-yellow-50' :
+                                            'bg-purple-100'
+                                        }`}
                                 >
                                     <div className="flex justify-between items-start mb-4">
                                         <div className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-wide ${quote.status === 'draft' ? 'bg-slate-100 text-slate-600' :
                                             quote.status === 'quoted' ? 'bg-amber-100 text-amber-700' :
-                                                'bg-green-100 text-green-700'
+                                                'bg-purple-200 text-purple-800'
                                             }`}>
                                             {quote.status}
                                         </div>
@@ -124,7 +127,7 @@ export default function Dashboard({
                                         </button>
                                     </div>
 
-                                    <h3 className="font-semibold text-lg text-slate-800 mb-1">
+                                    <h3 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">
                                         {quote.jobDetails.jobNo || 'Untitled Job'}
                                     </h3>
                                     <p className="text-slate-500 text-sm mb-4">

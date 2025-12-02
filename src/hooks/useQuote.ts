@@ -236,13 +236,13 @@ export function useQuote() {
     const reportingCost = (jobDetails.reportingTime || 0) * rates.officeReporting;
 
     const travelChargeCost = jobDetails.includeTravelCharge
-        ? ((rates.travelCharge * (jobDetails.travelDistance || 0)) + rates.travelChargeExBrisbane) * jobDetails.technicians.length
+        ? (rates.travelChargeExBrisbane || 0) * jobDetails.technicians.length
         : 0;
 
-    const totalCost = shifts.reduce((acc, shift) => acc + calculateShiftBreakdown(shift).cost, 0) +
+    const totalCost = shifts.reduce((acc, shift) => acc + (calculateShiftBreakdown(shift).cost || 0), 0) +
         extras.reduce((acc, item) => acc + (item.cost || 0), 0) +
-        reportingCost +
-        travelChargeCost;
+        (reportingCost || 0) +
+        (travelChargeCost || 0);
 
     const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftBreakdown(shift).breakdown.totalHours, 0);
 

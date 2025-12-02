@@ -8,12 +8,11 @@ interface JobDetailsProps {
     isLocked: boolean;
     savedCustomers: Customer[];
     setRates: (rates: Rates) => void;
-    savedTechnicians: string[];
     status: 'draft' | 'quoted' | 'invoice';
 }
 
 export default function JobDetails({
-    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, savedTechnicians, status
+    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, status
 }: JobDetailsProps) {
 
     const handleCustomerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,7 +114,6 @@ export default function JobDetails({
                         <div key={index} className="flex items-center gap-1">
                             <input
                                 type="text"
-                                list="tech-list"
                                 disabled={isLocked}
                                 value={tech}
                                 onChange={(e) => updateTechnician(index, e.target.value)}
@@ -141,11 +139,7 @@ export default function JobDetails({
                         </button>
                     )}
                 </div>
-                <datalist id="tech-list">
-                    {savedTechnicians.map(t => (
-                        <option key={t} value={t} />
-                    ))}
-                </datalist>
+
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -176,22 +170,7 @@ export default function JobDetails({
                         </label>
                     </div>
 
-                    {jobDetails.includeTravelCharge && (
-                        <div className="flex-1">
-                            <label className="block text-sm font-medium text-slate-600 mb-1">Travel Distance (km)</label>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="number"
-                                    step="1"
-                                    disabled={isLocked}
-                                    value={jobDetails.travelDistance || 0}
-                                    onChange={(e) => setJobDetails({ ...jobDetails, travelDistance: parseFloat(e.target.value) || 0 })}
-                                    className={`p-2 border rounded w-full ${isLocked ? 'bg-slate-100 text-slate-500' : ''}`}
-                                />
-                                <span className="text-slate-500">km</span>
-                            </div>
-                        </div>
-                    )}
+
                 </div>
             </div>
 
