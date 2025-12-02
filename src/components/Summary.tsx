@@ -50,6 +50,24 @@ export default function Summary({ quote }: SummaryProps) {
         return `*** ${typeLabel} ***\nJob: ${jobDetails.jobNo} - ${jobDetails.customer}\n${techCount}x ${techLabel} to attend\n\n${jobDetails.description}\n\nBreakdown:\n${lines}${extraLines}\n\nTotal Hours: ${totalHours.toFixed(2)}\nIncludes Vehicle & Per Diems where applicable.`;
     };
 
+    const generateEmailBody = () => {
+        const variance = totalCost - (jobDetails.quotedAmount || 0);
+        const hasVariance = (jobDetails.quotedAmount || 0) > 0 && Math.abs(variance) > 0.01;
+
+        let body = `Hi Admin,\n\nSee draft invoice details for ${jobDetails.jobNo} - ${jobDetails.customer}.\n\nTotal to Invoice: ${formatMoney(totalCost)}\n`;
+
+        if (hasVariance) {
+            body += `\nNote: The final value is ${formatMoney(Math.abs(variance))} ${variance > 0 ? 'higher' : 'lower'} than the original quote of ${formatMoney(jobDetails.quotedAmount || 0)}.`;
+            if (jobDetails.varianceReason) {
+                body += `\nReason: ${jobDetails.varianceReason}`;
+            }
+            body += '\n';
+        }
+
+        body += `\n---\n${generateXeroString()}`;
+        return body;
+    };
+
     const copyToClipboard = () => {
         navigator.clipboard.writeText(generateXeroString());
         alert("Copied to clipboard!");
@@ -189,32 +207,101 @@ export default function Summary({ quote }: SummaryProps) {
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold text-slate-700">Xero / Invoice Copy</h2>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={exportPDF}
-                            className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
-                        >
-                            <FileDown size={16} /> PDF
-                        </button>
-                        <button
-                            onClick={copyToClipboard}
-                            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
-                        >
-                            <Copy size={16} /> Copy Text
-                        </button>
+            <div className="space-y-6">
+                {/* Admin Communication Section */}
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-slate-700">Admin Communication</h2>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    const body = generateEmailBody();
+                                    window.open(`mailto:?subject=Invoice ${jobDetails.jobNo}&body=${encodeURIComponent(body)}`);
+                                }}
+                                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
+                            >
+                                <Copy size={16} /> Open Email
+                            </button>
+                            <button
+                                onClick={() => {
+                                    navigator.clipboard.writeText(generateEmailBody());
+                                    alert("Email body copied to clipboard!");
+                                }}
+                                className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
+                            >
+                                <Copy size={16} /> Copy Body
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">
+                                Original Quote / PO Amount
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-slate-400">$</span>
+                                <input
+                                    type="number"
+                                    value={jobDetails.quotedAmount || ''}
+                                    onChange={(e) => quote.setJobDetails({ ...jobDetails, quotedAmount: parseFloat(e.target.value) || 0 })}
+                                    className="w-full pl-7 p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 mb-1">
+                                Variance Reason
+                            </label>
+                            <input
+                                type="text"
+                                value={jobDetails.varianceReason || ''}
+                                onChange={(e) => quote.setJobDetails({ ...jobDetails, varianceReason: e.target.value })}
+                                className="w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="e.g. Extra site time requested..."
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded border border-slate-200 flex justify-between items-center mb-4">
+                        <span className="text-sm font-medium text-slate-600">Total to Invoice: {formatMoney(totalCost)}</span>
+                        {(jobDetails.quotedAmount || 0) > 0 && (
+                            <span className={`text-sm font-bold ${totalCost > (jobDetails.quotedAmount || 0) ? 'text-red-600' : 'text-green-600'}`}>
+                                Difference: {formatMoney(totalCost - (jobDetails.quotedAmount || 0))}
+                                {totalCost > (jobDetails.quotedAmount || 0) ? ' (Higher)' : ' (Lower)'}
+                            </span>
+                        )}
                     </div>
                 </div>
-                <p className="text-sm text-slate-500 mb-2">
-                    Copy this block and paste it directly into your accounting software description field.
-                </p>
-                <textarea
-                    readOnly
-                    className="w-full h-64 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
-                    value={generateXeroString()}
-                />
+
+                <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-slate-700">Xero / Invoice Copy</h2>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={exportPDF}
+                                className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
+                            >
+                                <FileDown size={16} /> PDF
+                            </button>
+                            <button
+                                onClick={copyToClipboard}
+                                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
+                            >
+                                <Copy size={16} /> Copy Text
+                            </button>
+                        </div>
+                    </div>
+                    <p className="text-sm text-slate-500 mb-2">
+                        Copy this block and paste it directly into your accounting software description field.
+                    </p>
+                    <textarea
+                        readOnly
+                        className="w-full h-64 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
+                        value={generateXeroString()}
+                    />
+                </div>
             </div>
 
         </div>

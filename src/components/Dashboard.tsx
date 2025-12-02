@@ -28,6 +28,7 @@ export default function Dashboard({
     saveAsDefaults, resetToDefaults, savedDefaultRates
 }: DashboardProps) {
     const [view, setView] = useState<'quotes' | 'customers' | 'technicians'>('quotes');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'quoted' | 'invoice'>('all');
 
     const handleDelete = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -68,6 +69,23 @@ export default function Dashboard({
                     </div>
                 </div>
 
+                {view === 'quotes' && (
+                    <div className="flex gap-2 mb-6">
+                        {(['all', 'draft', 'quoted', 'invoice'] as const).map((status) => (
+                            <button
+                                key={status}
+                                onClick={() => setFilterStatus(status)}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize transition-colors ${filterStatus === status
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                                    }`}
+                            >
+                                {status}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {view === 'quotes' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* New Quote Card */}
@@ -81,41 +99,44 @@ export default function Dashboard({
                             <span className="font-semibold text-slate-700">Create New Quote</span>
                         </button>
 
-                        {/* Saved Quotes */}
-                        {savedQuotes.sort((a, b) => b.lastModified - a.lastModified).map((quote) => (
-                            <div
-                                key={quote.id}
-                                onClick={() => loadQuote(quote.id)}
-                                className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer relative group"
-                            >
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-wide ${quote.status === 'draft' ? 'bg-slate-100 text-slate-600' :
-                                        quote.status === 'quoted' ? 'bg-amber-100 text-amber-700' :
-                                            'bg-green-100 text-green-700'
-                                        }`}>
-                                        {quote.status}
+                        {/* Filtered Quotes */}
+                        {savedQuotes
+                            .filter(q => filterStatus === 'all' || q.status === filterStatus)
+                            .sort((a, b) => b.lastModified - a.lastModified)
+                            .map((quote) => (
+                                <div
+                                    key={quote.id}
+                                    onClick={() => loadQuote(quote.id)}
+                                    className="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer relative group"
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div className={`px-2 py-1 rounded text-xs font-medium uppercase tracking-wide ${quote.status === 'draft' ? 'bg-slate-100 text-slate-600' :
+                                            quote.status === 'quoted' ? 'bg-amber-100 text-amber-700' :
+                                                'bg-green-100 text-green-700'
+                                            }`}>
+                                            {quote.status}
+                                        </div>
+                                        <button
+                                            onClick={(e) => handleDelete(e, quote.id)}
+                                            className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
                                     </div>
-                                    <button
-                                        onClick={(e) => handleDelete(e, quote.id)}
-                                        className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
 
-                                <h3 className="font-semibold text-lg text-slate-800 mb-1">
-                                    {quote.jobDetails.jobNo || 'Untitled Job'}
-                                </h3>
-                                <p className="text-slate-500 text-sm mb-4">
-                                    {quote.jobDetails.customer || 'No Customer'}
-                                </p>
+                                    <h3 className="font-semibold text-lg text-slate-800 mb-1">
+                                        {quote.jobDetails.jobNo || 'Untitled Job'}
+                                    </h3>
+                                    <p className="text-slate-500 text-sm mb-4">
+                                        {quote.jobDetails.customer || 'No Customer'}
+                                    </p>
 
-                                <div className="flex items-center gap-2 text-sm text-slate-400 mt-auto">
-                                    <FolderOpen size={14} />
-                                    <span>Last edited {new Date(quote.lastModified).toLocaleDateString()}</span>
+                                    <div className="flex items-center gap-2 text-sm text-slate-400 mt-auto">
+                                        <FolderOpen size={14} />
+                                        <span>Last edited {new Date(quote.lastModified).toLocaleDateString()}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            ))}
                     </div>
                 ) : view === 'customers' ? (
                     <CustomerDashboard

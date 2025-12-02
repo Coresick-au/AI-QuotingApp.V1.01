@@ -20,8 +20,8 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
     } = quote;
 
     const saveQuoteToSystem = () => {
-        if (!jobDetails.customer || !jobDetails.jobNo) {
-            alert("Please enter Customer Name and Job Number before saving.");
+        if (!jobDetails.customer) {
+            alert("Please enter Customer Name before saving.");
             return;
         }
         setStatus('quoted');
@@ -117,7 +117,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
 
             <Timesheet
                 shifts={shifts}
-                technicians={jobDetails.technicians}
+                technicians={Array.from(new Set([...savedTechnicians, ...jobDetails.technicians]))}
                 isLocked={isLocked}
                 addShift={addShift}
                 updateShift={updateShift}

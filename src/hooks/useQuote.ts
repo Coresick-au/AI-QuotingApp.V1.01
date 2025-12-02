@@ -29,7 +29,9 @@ const DEFAULT_JOB_DETAILS: JobDetails = {
     description: '',
     reportingTime: 0,
     includeTravelCharge: false,
-    travelDistance: 0
+    travelDistance: 0,
+    quotedAmount: 0,
+    varianceReason: ''
 };
 
 const DEFAULT_SHIFTS: Shift[] = [

@@ -32,6 +32,8 @@ export interface JobDetails {
     reportingTime: number; // hours
     includeTravelCharge: boolean;
     travelDistance: number; // km
+    quotedAmount?: number;
+    varianceReason?: string;
 }
 
 export interface Shift {
