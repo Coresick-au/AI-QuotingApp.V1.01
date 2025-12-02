@@ -9,10 +9,11 @@ interface JobDetailsProps {
     savedCustomers: Customer[];
     setRates: (rates: Rates) => void;
     savedTechnicians: string[];
+    status: 'draft' | 'quoted' | 'invoice';
 }
 
 export default function JobDetails({
-    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, savedTechnicians
+    jobDetails, setJobDetails, isLocked, savedCustomers, setRates, savedTechnicians, status
 }: JobDetailsProps) {
 
     const handleCustomerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,19 +77,21 @@ export default function JobDetails({
                     </datalist>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
-                        <FileText size={16} /> Job Number
-                    </label>
-                    <input
-                        type="text"
-                        disabled={isLocked}
-                        value={jobDetails.jobNo}
-                        onChange={(e) => setJobDetails({ ...jobDetails, jobNo: e.target.value })}
-                        className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none ${isLocked ? 'bg-slate-100 text-slate-500' : ''}`}
-                        placeholder="e.g. J123456"
-                    />
-                </div>
+                {status === 'invoice' && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">
+                            <FileText size={16} /> Job Number
+                        </label>
+                        <input
+                            type="text"
+                            disabled={isLocked}
+                            value={jobDetails.jobNo}
+                            onChange={(e) => setJobDetails({ ...jobDetails, jobNo: e.target.value })}
+                            className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 outline-none ${isLocked ? 'bg-slate-100 text-slate-500' : ''}`}
+                            placeholder="e.g. J123456"
+                        />
+                    </div>
+                )}
 
                 <div>
                     <label className="block text-sm font-medium text-slate-600 mb-1 flex items-center gap-2">

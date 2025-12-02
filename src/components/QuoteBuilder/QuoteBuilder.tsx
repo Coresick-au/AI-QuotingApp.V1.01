@@ -112,6 +112,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
                 savedCustomers={savedCustomers}
                 setRates={setRates}
                 savedTechnicians={savedTechnicians}
+                status={status}
             />
 
             <Timesheet
