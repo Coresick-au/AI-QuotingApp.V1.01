@@ -15,42 +15,27 @@ export default function Summary({ quote }: SummaryProps) {
 
     const formatMoney = (amount: number) => new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
 
-    const generateXeroString = () => {
-        const typeLabel = status === 'invoice' ? 'INVOICE' : 'QUOTE';
-        const techCount = jobDetails.technicians.length;
-        const techLabel = techCount === 1 ? 'Service Technician' : 'Service Technicians';
-
-        const formatDateWithDay = (dateStr: string) => {
-            const date = new Date(dateStr + 'T00:00:00');
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const dayName = days[date.getDay()];
-
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = String(date.getFullYear()).slice(-2);
-
-            return `${dayName} ${day}-${month}-${year}`;
-        };
-
-        const lines = shifts.map(s => {
+    const generateInvoiceString = () => {
+        // Calculate Totals
+        const siteNTCost = shifts.reduce((acc, s) => acc + (calculateShiftBreakdown(s).breakdown.siteNT * rates.siteNormal), 0);
+        const siteOTCost = shifts.reduce((acc, s) => {
             const { breakdown } = calculateShiftBreakdown(s);
-            const travelIn = s.travelIn.toFixed(2);
-            const travelOut = s.travelOut.toFixed(2);
-            const siteTotal = (breakdown.siteNT + breakdown.siteOT).toFixed(2);
-            const techName = s.tech || 'Tech 1';
-            return `${formatDateWithDay(s.date)} (${techName}): ${s.startTime}-${s.finishTime} | Travel In: ${travelIn}h | Site: ${siteTotal}h | Travel Out: ${travelOut}h (${breakdown.siteNT.toFixed(2)} NT / ${breakdown.siteOT.toFixed(2)} OT)`;
-        }).join('\n');
+            const rate = s.dayType === 'publicHoliday' ? rates.publicHoliday : (s.dayType === 'weekend' ? rates.weekend : rates.siteOvertime);
+            return acc + (breakdown.siteOT * rate);
+        }, 0);
+        const travelNTCost = shifts.reduce((acc, s) => {
+            const { breakdown } = calculateShiftBreakdown(s);
+            return acc + (breakdown.travelInNT * rates.travel) + (breakdown.travelOutNT * rates.travel);
+        }, 0);
+        const travelOTCost = shifts.reduce((acc, s) => {
+            const { breakdown } = calculateShiftBreakdown(s);
+            return acc + (breakdown.travelInOT * rates.travelOvertime) + (breakdown.travelOutOT * rates.travelOvertime);
+        }, 0);
+        const vehicleCost = shifts.filter(s => s.vehicle).length * rates.vehicle;
+        const perDiemCost = shifts.filter(s => s.perDiem).length * rates.perDiem;
+        const extrasCost = extras.reduce((acc, item) => acc + (item.cost || 0), 0);
 
-        const totalHours = shifts.reduce((acc, shift) => acc + calculateShiftBreakdown(shift).breakdown.totalHours, 0);
-
-        let extraLines = '';
-        if (reportingCost > 0) extraLines += `\nReporting Time: ${jobDetails.reportingTime}h`;
-        if (travelChargeCost > 0) extraLines += `\nTravel Charge: ${formatMoney(travelChargeCost)}`;
-
-        return `*** ${typeLabel} ***\nJob: ${jobDetails.jobNo} - ${jobDetails.customer}\n${techCount}x ${techLabel} to attend\n\n${jobDetails.description}\n\nBreakdown:\n${lines}${extraLines}\n\nTotal Hours: ${totalHours.toFixed(2)}\nIncludes Vehicle & Per Diems where applicable.`;
-    };
-
-    const generateEmailBody = () => {
+        // Admin Header
         const variance = totalCost - (jobDetails.quotedAmount || 0);
         const hasVariance = (jobDetails.quotedAmount || 0) > 0 && Math.abs(variance) > 0.01;
 
@@ -64,12 +49,29 @@ export default function Summary({ quote }: SummaryProps) {
             body += '\n';
         }
 
-        body += `\n---\n${generateXeroString()}`;
+        // Financial Breakdown
+        body += `\n---\nFinancial Breakdown:\n`;
+        body += `Site Labor (Normal): ${formatMoney(siteNTCost)}\n`;
+        body += `Site Labor (Overtime): ${formatMoney(siteOTCost)}\n`;
+        body += `Travel Labor (NT): ${formatMoney(travelNTCost)}\n`;
+        body += `Travel Labor (OT): ${formatMoney(travelOTCost)}\n`;
+
+        if (vehicleCost > 0) body += `Vehicle Allowances: ${formatMoney(vehicleCost)}\n`;
+        if (perDiemCost > 0) body += `Per Diems: ${formatMoney(perDiemCost)}\n`;
+        if (reportingCost > 0) body += `Reporting Time: ${formatMoney(reportingCost)}\n`;
+        if (travelChargeCost > 0) body += `Travel Charge: ${formatMoney(travelChargeCost)}\n`;
+
+        if (extrasCost > 0) {
+            body += `Extras: ${formatMoney(extrasCost)}\n`;
+        }
+
+        body += `\nTotal: ${formatMoney(totalCost)}`;
+
         return body;
     };
 
     const copyToClipboard = () => {
-        navigator.clipboard.writeText(generateXeroString());
+        navigator.clipboard.writeText(generateInvoiceString());
         alert("Copied to clipboard!");
     };
 
@@ -212,26 +214,6 @@ export default function Summary({ quote }: SummaryProps) {
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-lg font-semibold text-slate-700">Admin Communication</h2>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => {
-                                    const body = generateEmailBody();
-                                    window.open(`mailto:?subject=Invoice ${jobDetails.jobNo}&body=${encodeURIComponent(body)}`);
-                                }}
-                                className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
-                            >
-                                <Copy size={16} /> Open Email
-                            </button>
-                            <button
-                                onClick={() => {
-                                    navigator.clipboard.writeText(generateEmailBody());
-                                    alert("Email body copied to clipboard!");
-                                }}
-                                className="bg-slate-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-slate-700"
-                            >
-                                <Copy size={16} /> Copy Body
-                            </button>
-                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -269,7 +251,7 @@ export default function Summary({ quote }: SummaryProps) {
                         {(jobDetails.quotedAmount || 0) > 0 && (
                             <span className={`text-sm font-bold ${totalCost > (jobDetails.quotedAmount || 0) ? 'text-red-600' : 'text-green-600'}`}>
                                 Difference: {formatMoney(totalCost - (jobDetails.quotedAmount || 0))}
-                                {totalCost > (jobDetails.quotedAmount || 0) ? ' (Higher)' : ' (Lower)'}
+                                {Math.abs(totalCost - (jobDetails.quotedAmount || 0)) > 0.01 ? (totalCost > (jobDetails.quotedAmount || 0) ? ' (Higher)' : ' (Lower)') : ''}
                             </span>
                         )}
                     </div>
@@ -277,7 +259,7 @@ export default function Summary({ quote }: SummaryProps) {
 
                 <div className="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-lg font-semibold text-slate-700">Xero / Invoice Copy</h2>
+                        <h2 className="text-lg font-semibold text-slate-700">Invoice Copy</h2>
                         <div className="flex gap-2">
                             <button
                                 onClick={exportPDF}
@@ -289,17 +271,17 @@ export default function Summary({ quote }: SummaryProps) {
                                 onClick={copyToClipboard}
                                 className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm flex items-center gap-2 hover:bg-blue-700"
                             >
-                                <Copy size={16} /> Copy Text
+                                <Copy size={16} /> Copy Email
                             </button>
                         </div>
                     </div>
                     <p className="text-sm text-slate-500 mb-2">
-                        Copy this block and paste it directly into your accounting software description field.
+                        Copy this block and paste it directly into your email or accounting software.
                     </p>
                     <textarea
                         readOnly
                         className="w-full h-64 p-3 font-mono text-sm bg-slate-50 border rounded focus:outline-none"
-                        value={generateXeroString()}
+                        value={generateInvoiceString()}
                     />
                 </div>
             </div>

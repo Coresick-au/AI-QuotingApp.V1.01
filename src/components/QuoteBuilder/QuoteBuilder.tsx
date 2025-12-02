@@ -117,7 +117,7 @@ export default function QuoteBuilder({ quote }: QuoteBuilderProps) {
 
             <Timesheet
                 shifts={shifts}
-                technicians={Array.from(new Set([...savedTechnicians, ...jobDetails.technicians]))}
+                technicians={savedTechnicians}
                 isLocked={isLocked}
                 addShift={addShift}
                 updateShift={updateShift}

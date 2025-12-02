@@ -33,3 +33,11 @@ The calculation order for "consuming" the standard 7.5h Normal Time (NT) cap on 
 Key entities are defined in `src/types.ts`. When modifying state, preserve:
 - `Quote`: Root object containing `shifts` and `jobDetails`.
 - `rates`: The configuration object used for all cost math.
+
+## 4. Development Protocols (AI MUST FOLLOW)
+
+### Data Flow & Component Modification
+Before modifying any component properties or data inputs, perform this audit:
+1.  **Audit Data Sources:** Distinguish between *Global State* (Master Lists like `savedTechnicians`) and *Local State* (Active Selection like `jobDetails.technicians`).
+2.  **Dropdown/Selection Rule:** When creating inputs or dropdowns, ALWAYS use the **Global/Master List** to populate options. Never limit a selection list to only the items currently selected (the "Local List"), as this prevents adding new items.
+3.  **Destructuring Check:** Ensure necessary global arrays are destructured from the source hook (e.g., `const { savedTechnicians } = quote`) before trying to use them.

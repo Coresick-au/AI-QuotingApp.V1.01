@@ -68,7 +68,7 @@ export default function Layout({ children, activeTab, setActiveTab, status, tota
                             activeTab === 'summary' ? 'border-blue-600 text-blue-600 font-medium' : 'border-transparent text-slate-500'
                         )}
                     >
-                        <FileText size={18} /> Xero / Summary
+                        <FileText size={18} /> Summary
                     </button>
                 </div>
             </nav>

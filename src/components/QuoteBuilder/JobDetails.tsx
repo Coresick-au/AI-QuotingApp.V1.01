@@ -29,10 +29,8 @@ export default function JobDetails({
 
     const addTechnician = () => {
         if (isLocked) return;
-        // Use first saved technician if available, otherwise use Tech N pattern
-        const newTechName = savedTechnicians.length > 0
-            ? savedTechnicians[0]
-            : `Tech ${jobDetails.technicians.length + 1}`;
+        // Always use Tech N pattern for new technicians
+        const newTechName = `Tech ${jobDetails.technicians.length + 1}`;
         setJobDetails({ ...jobDetails, technicians: [...jobDetails.technicians, newTechName] });
     };
 
